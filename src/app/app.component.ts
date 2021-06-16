@@ -3,11 +3,16 @@ import {
   Component,
   ContentChildren,
   ElementRef,
+  EventEmitter,
+  HostBinding,
   HostListener,
   Input,
+  Output,
   QueryList,
+  ViewChild,
 } from '@angular/core';
-import { FocusableOption, FocusKeyManager } from '@angular/cdk/a11y';
+import { FocusableOption, FocusKeyManager, Highlightable } from '@angular/cdk/a11y';
+import { UP_ARROW, DOWN_ARROW, ENTER } from '@angular/cdk/keycodes';
 
 @Component({
   selector: 'app-list-item',
@@ -16,35 +21,52 @@ import { FocusableOption, FocusKeyManager } from '@angular/cdk/a11y';
       display: block;
       margin: 1rem 0;
       padding: 1rem;
-      background-color: #0090FF;
       transition: all 0.3s;
       outline: none;
-      color: white;
     }
 
     :host(:focus) {
-      background-color: #28BF5F;
-      transform: translateX(1rem);
+      background-color: lightgray;
+      cursor: pointer;
+      text-decoration: underline;
     }
   `],
   host: { tabindex: '-1' },
   template: `
-    <span>{{ fruit }}</span>
+    <span>{{ item }}</span>
   `,
 })
-export class ListItemComponent implements FocusableOption {
-  @Input() fruit: string;
-  disabled: boolean;
+export class ListItemComponent implements FocusableOption, Highlightable {
+  @Input() item: string;
+  @Output() itemSelected = new EventEmitter<any>();
+
+  private _isActive = false;
 
   constructor(private element: ElementRef) {
   }
 
   getLabel(): string {
-    return this.fruit;
+    return 'label' + Math.random();
   }
 
   focus(): void {
     this.element.nativeElement.focus();
+  }
+
+  @HostBinding('class.active') get isActive() {
+    return this._isActive;
+  }
+
+  setActiveStyles() {
+    this._isActive = true;
+  };
+
+  setInactiveStyles() {
+    this._isActive = false;
+  }
+
+  selectItem() {
+    this.itemSelected.emit(this.item);
   }
 }
 
@@ -63,11 +85,17 @@ export class ListItemComponent implements FocusableOption {
 })
 export class ListComponent implements AfterContentInit {
   @ContentChildren(ListItemComponent) items: QueryList<ListItemComponent>;
-  private keyManager: FocusKeyManager<ListItemComponent>;
+  public keyManager: FocusKeyManager<ListItemComponent>;
 
   @HostListener('keydown', ['$event'])
   manage(event: KeyboardEvent) {
     this.keyManager.onKeydown(event);
+    const { target, key } = event;
+    event.stopImmediatePropagation();
+    if (key === 'Enter') {
+      // when we hit enter, the keyboardManager should call the selectItem method of the `ListItemComponent`
+      this.keyManager.activeItem?.selectItem();
+    }
   }
 
   ngAfterContentInit(): void {
@@ -85,13 +113,20 @@ export class ListComponent implements AfterContentInit {
   `],
   template: `
     <h1>Fruits</h1>
-    <input type='text' />
-    <app-list>
-      <app-list-item *ngFor="let fruit of fruits" [fruit]="fruit"></app-list-item>
+    <input type='text' [value]="address" (keyup)="handleKeydown($event)"/>
+    <form>
+    <app-list *ngIf="fruits.length">
+      <app-list-item (click)="handleClick(fruit)" *ngFor="let fruit of fruits" [item]="fruit" (itemSelected)="showSelected($event)">></app-list-item>
+      <app-list-item (click)="handleClick('clear')" [item]="'Clear'" (itemSelected)="clearField()">></app-list-item>
     </app-list>
+    </form>
+    <div><input type="text" /></div>
+    <div style="padding-top: 1rem;"><button (click)="handleClick($event)">click me</button></div>
   `,
 })
 export class AppComponent  {
+  @ViewChild(ListComponent) addressList: ListComponent;
+  address:string = '';
   fruits = [
     'Apples',
     'Bananas',
@@ -100,4 +135,30 @@ export class AppComponent  {
     'Blueberries',
     'Avocados',
   ];
+
+  handleKeydown(event: KeyboardEvent) {
+    const { target, key } = event;
+    event.stopImmediatePropagation();
+    if (this.addressList?.keyManager) {
+      if (key === 'ArrowDown' || key === 'ArrowUp') {
+        // passing the event to key manager so we get a change fired
+        this.addressList.keyManager.onKeydown(event);
+      }
+    }
+  }
+
+  handleClick(event: any) {
+    console.log('clicked...', event);
+    this.showSelected(event);
+  }
+
+  showSelected(event: any) {
+    this.address = event;
+    this.fruits = [];
+  }
+
+  clearField() {
+    this.address = '';
+    this.fruits = [];
+  }
 }
