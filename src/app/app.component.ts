@@ -7,11 +7,12 @@ import {
   HostBinding,
   HostListener,
   Input,
+  OnInit,
   Output,
   QueryList,
   ViewChild,
 } from '@angular/core';
-import { FocusableOption, FocusKeyManager, Highlightable } from '@angular/cdk/a11y';
+import { FocusableOption, FocusKeyManager, Highlightable, ListKeyManager } from '@angular/cdk/a11y';
 import { UP_ARROW, DOWN_ARROW, ENTER } from '@angular/cdk/keycodes';
 
 @Component({
@@ -24,45 +25,32 @@ import { UP_ARROW, DOWN_ARROW, ENTER } from '@angular/cdk/keycodes';
       transition: all 0.3s;
       outline: none;
     }
-
-    :host(:focus) {
+    .item--active {
       background-color: lightgray;
       cursor: pointer;
       text-decoration: underline;
     }
   `],
-  host: { tabindex: '-1' },
   template: `
-    <span>{{ item }}</span>
+    <span [class.item--active]="isActive">{{ item }}</span>
   `,
 })
-export class ListItemComponent implements FocusableOption, Highlightable {
+export class ListItemComponent implements OnInit {
+  // TODO
+  // this version does not work with NVDA, since there is no focus
   @Input() item: string;
   @Output() itemSelected = new EventEmitter<any>();
 
-  private _isActive = false;
+  isActive = false;
 
-  constructor(private element: ElementRef) {
+  constructor() { }
+
+  ngOnInit() {
+    this.isActive = false;
   }
 
-  getLabel(): string {
-    return 'label' + Math.random();
-  }
-
-  focus(): void {
-    this.element.nativeElement.focus();
-  }
-
-  @HostBinding('class.active') get isActive() {
-    return this._isActive;
-  }
-
-  setActiveStyles() {
-    this._isActive = true;
-  };
-
-  setInactiveStyles() {
-    this._isActive = false;
+  setActive(val: boolean) {
+    this.isActive = val;
   }
 
   selectItem() {
@@ -85,21 +73,25 @@ export class ListItemComponent implements FocusableOption, Highlightable {
 })
 export class ListComponent implements AfterContentInit {
   @ContentChildren(ListItemComponent) items: QueryList<ListItemComponent>;
-  public keyManager: FocusKeyManager<ListItemComponent>;
-
-  @HostListener('keydown', ['$event'])
-  manage(event: KeyboardEvent) {
-    this.keyManager.onKeydown(event);
-    const { target, key } = event;
-    event.stopImmediatePropagation();
-    if (key === 'Enter') {
-      // when we hit enter, the keyboardManager should call the selectItem method of the `ListItemComponent`
-      this.keyManager.activeItem?.selectItem();
-    }
-  }
+  public keyManager: ListKeyManager<any>;
 
   ngAfterContentInit(): void {
-    this.keyManager = new FocusKeyManager(this.items).withWrap();
+    this.keyManager = new ListKeyManager<any>(this.items).withWrap();
+    this.initKeyManagerHandlers();
+  }
+  
+
+  initKeyManagerHandlers() {
+    this.keyManager
+      .change
+      .subscribe((activeIndex) => {
+        // when the navigation item changes, we get new activeIndex
+        this.items.map((item, index) => {
+          // set the isActive `true` for the appropriate list item and `false` for the rest
+          item.setActive(activeIndex === index);
+          return item;
+        });
+      });
   }
 }
 
@@ -143,6 +135,9 @@ export class AppComponent  {
       if (key === 'ArrowDown' || key === 'ArrowUp') {
         // passing the event to key manager so we get a change fired
         this.addressList.keyManager.onKeydown(event);
+      } 
+      else if(key === 'Enter') {
+        this.addressList.keyManager.activeItem?.selectItem();
       }
     }
   }
