@@ -37,6 +37,7 @@ import { UP_ARROW, DOWN_ARROW, ENTER } from '@angular/cdk/keycodes';
   `,
 })
 export class ListItemComponent implements FocusableOption, Highlightable {
+
   @Input() item: string;
   @Output() itemSelected = new EventEmitter<any>();
 
@@ -57,6 +58,8 @@ export class ListItemComponent implements FocusableOption, Highlightable {
     return this._isActive;
   }
 
+  // TODO:
+  // Highlightable: This is the interface for highlightable items (used by the ActiveDescendantKeyManager).
   setActiveStyles() {
     this._isActive = true;
   };
