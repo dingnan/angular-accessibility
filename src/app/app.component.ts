@@ -4,16 +4,18 @@ import {
   ContentChildren,
   ElementRef,
   EventEmitter,
-  HostBinding,
   HostListener,
   Input,
   Output,
   QueryList,
   ViewChild,
 } from '@angular/core';
-import { FocusableOption, FocusKeyManager, Highlightable } from '@angular/cdk/a11y';
-import { UP_ARROW, DOWN_ARROW, ENTER } from '@angular/cdk/keycodes';
+import { FocusableOption, FocusKeyManager } from '@angular/cdk/a11y';
 
+  /**
+   * Known issue
+   * Tested with NVDA, for active item, the highlight color is missing, however, the speaking works. 
+   */
 @Component({
   selector: 'app-list-item',
   styles: [`
@@ -36,36 +38,14 @@ import { UP_ARROW, DOWN_ARROW, ENTER } from '@angular/cdk/keycodes';
     <span>{{ item }}</span>
   `,
 })
-export class ListItemComponent implements FocusableOption, Highlightable {
-
-  @Input() item: string;
+export class ListItemComponent implements FocusableOption {
+  @Input() item?: string;
   @Output() itemSelected = new EventEmitter<any>();
 
-  private _isActive = false;
-
-  constructor(private element: ElementRef) {
-  }
-
-  getLabel(): string {
-    return 'label' + Math.random();
-  }
+  constructor(private element: ElementRef) {}
 
   focus(): void {
     this.element.nativeElement.focus();
-  }
-
-  @HostBinding('class.active') get isActive() {
-    return this._isActive;
-  }
-
-  // TODO:
-  // Highlightable: This is the interface for highlightable items (used by the ActiveDescendantKeyManager).
-  setActiveStyles() {
-    this._isActive = true;
-  };
-
-  setInactiveStyles() {
-    this._isActive = false;
   }
 
   selectItem() {
@@ -84,7 +64,6 @@ export class ListItemComponent implements FocusableOption, Highlightable {
   template: `
     <ng-content></ng-content>
   `,
-  host: { 'tabindex': '0' },
 })
 export class ListComponent implements AfterContentInit {
   @ContentChildren(ListItemComponent) items: QueryList<ListItemComponent>;
@@ -92,11 +71,14 @@ export class ListComponent implements AfterContentInit {
 
   @HostListener('keydown', ['$event'])
   manage(event: KeyboardEvent) {
-    this.keyManager.onKeydown(event);
-    const { target, key } = event;
+    const { key } = event;
     event.stopImmediatePropagation();
-    if (key === 'Enter') {
-      // when we hit enter, the keyboardManager should call the selectItem method of the `ListItemComponent`
+    event.stopPropagation();
+    event.preventDefault();
+    if (key === 'ArrowDown' || key === 'ArrowUp') {
+      this.keyManager.onKeydown(event);
+    }
+    else if (key === 'Enter') {
       this.keyManager.activeItem?.selectItem();
     }
   }
@@ -116,31 +98,36 @@ export class ListComponent implements AfterContentInit {
   `],
   template: `
     <h1>Fruits</h1>
-    <input type='text' [value]="address" (keyup)="handleKeydown($event)"/>
-    <form>
+    <input #inputbox type='text' [value]="address" (keydown)="handleKeydown($event)"/>
+    <button (click)="loadItem()">Load List</button>
+    <div style="margin: 20px 0 20px 0"></div>
     <app-list *ngIf="fruits.length">
       <app-list-item (click)="handleClick(fruit)" *ngFor="let fruit of fruits" [item]="fruit" (itemSelected)="showSelected($event)">></app-list-item>
-      <app-list-item (click)="handleClick('clear')" [item]="'Clear'" (itemSelected)="clearField()">></app-list-item>
+      <app-list-item (click)="clearField()" [item]="'Clear Input'" (itemSelected)="clearField()">></app-list-item>
     </app-list>
-    </form>
     <div><input type="text" /></div>
     <div style="padding-top: 1rem;"><button (click)="handleClick($event)">click me</button></div>
   `,
 })
 export class AppComponent  {
+  @ViewChild('inputbox') inputBox: ElementRef;
   @ViewChild(ListComponent) addressList: ListComponent;
   address:string = '';
-  fruits = [
-    'Apples',
-    'Bananas',
-    'Cherries',
-    'Dewberries',
-    'Blueberries',
-    'Avocados',
-  ];
+  fruits: Array<string> = [];
+
+  loadItem() {
+    this.fruits = [
+      'Apples',
+      'Bananas',
+      'Cherries',
+      'Dewberries',
+      'Blueberries',
+      'Avocados',
+    ];
+  }
 
   handleKeydown(event: KeyboardEvent) {
-    const { target, key } = event;
+    const { key } = event;
     event.stopImmediatePropagation();
     if (this.addressList?.keyManager) {
       if (key === 'ArrowDown' || key === 'ArrowUp') {
@@ -151,17 +138,16 @@ export class AppComponent  {
   }
 
   handleClick(event: any) {
-    console.log('clicked...', event);
     this.showSelected(event);
   }
 
   showSelected(event: any) {
     this.address = event;
     this.fruits = [];
+    this.inputBox.nativeElement.focus();
   }
 
   clearField() {
-    this.address = '';
-    this.fruits = [];
+    this.showSelected('');
   }
 }
